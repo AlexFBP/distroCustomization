@@ -1,13 +1,13 @@
 #!/bin/bash
 
 aplicacion=/usr/local/bin/glud.sh
-if [ -f $aplicacion ]
-then
+if [ -f $aplicacion ]; then
   echo "El script ya está instalado en $aplicacion. Nada qué hacer."
 else
+  # rationale: PARTE 1. Creacion del archivo de aplicacion.
 
-# rationale: Saludo GLUD
-sudo tee $aplicacion << 'EOF'
+  # rationale: Saludo GLUD
+  sudo tee $aplicacion << 'EOF'
 usuario=${USER^^}
 echo "  /\\_/\\  Hola $usuario"
 echo ' ( o.o ) Bienvenid@ al Grupo GNU/Linux UD '
@@ -15,25 +15,24 @@ echo '  > ^ < '
 
 EOF
 
-# rationale: Configuración del PROXY UDistrital
-sudo tee -a $aplicacion << 'EOF'
+  # rationale: Configuración del PROXY UDistrital
+  sudo tee -a $aplicacion << 'EOF'
 # rationale: se una una única variable de entorno para establecer el proxy
 # si no existe se pone una predeterminada
 if [ -z "$PROXY_DIR" ]; then
-  PROXY_DIR=http://10.20.4.15:3128
+  PROXY_DIR=proxy.udistrital.edu.co:3128
 fi
 
 # rationale: agregar proxy a "apt-key adv"
 # link: https://unix.stackexchange.com/questions/361213/unable-to-add-gpg-key-with-apt-key-behind-a-proxy
 function proxy_apt_key {
-if [ "$1" != "off" ]; then
-  alias apt-key="apt-key --keyserver-options http-proxy=$PROXY_DIR"
-else
-  if alias | grep apt-key &> /dev/null
-  then 
-    unalias apt-key
+  if [ "$1" != "off" ]; then
+    alias apt-key="apt-key --keyserver-options http-proxy=http://$PROXY_DIR"
+  else
+    if alias | grep apt-key &> /dev/null; then
+      unalias apt-key
+    fi
   fi
-fi
 }
 
 # rationale: agrega todas las variables de entorno conocidas
@@ -43,9 +42,14 @@ fi
 # link: https://www.arin.net/knowledge/address_filters.html
 # link: https://wiki.archlinux.org/index.php/proxy_settings
 function proxy {
-export {HTTP,HTTPS,FTP,ALL,SOCKS,RSYNC}_PROXY=$PROXY_DIR
-export {http,https,ftp,all,socks,rsync}_proxy=$PROXY_DIR
-export {NO_PROXY,no_proxy}="localhost,127.0.0.1,localaddress,.localdomain.com,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12"
+protocols=(http https ftp all socks rsync)
+
+for I in ${protocols[@]}; do
+  export ${I}_proxy="${I}://$PROXY_DIR"
+  export ${I^^}_PROXY="${I^^}://$PROXY_DIR"
+done
+
+export {NO_PROXY,no_proxy}="localhost,127.0.0.1,localaddress,.localdomain.com,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12,::1"
 proxy_apt_key
 env | grep -i proxy
 }
@@ -63,8 +67,8 @@ env | grep -i proxy
 
 EOF
 
-# rationale: agregar mostrar logo kokopelli glud
-sudo tee -a $aplicacion << 'EOF'
+  # rationale: agregar mostrar logo kokopelli glud
+  sudo tee -a $aplicacion << 'EOF'
 # rationale: logo del glud creado con caracteres ASCII
 # link: http://www.text-image.com/convert/pic2ascii.cgi
 function glud {
@@ -102,8 +106,8 @@ echo '                       -os|||s.                   '
 
 EOF
 
-# rationale: escribe el archivo modificando variables de configuración del historial
-sudo tee -a $aplicacion << 'EOF'
+  # rationale: escribe el archivo modificando variables de configuración del historial
+  sudo tee -a $aplicacion << 'EOF'
 # rationale: aumentar tamaño del historial
 # link: https://stackoverflow.com/questions/19454837/bash-histsize-vs-histfilesize#19454838
 # link: https://gist.github.com/OliverMichels/967993
@@ -116,8 +120,8 @@ shopt -s histappend # Append to history rather than overwrite
 
 EOF
 
-# rationale: algunos alias para gestor de paquetes apt
-sudo tee -a $aplicacion << 'EOF'
+  # rationale: algunos alias para gestor de paquetes apt
+  sudo tee -a $aplicacion << 'EOF'
 # rationale: alias apt
 if apt --version &> /dev/null
 then
@@ -127,7 +131,6 @@ alias ain='sudo apt install'
 alias ase='apt search'
 alias arm='sudo apt remove'
 alias aarm='sudo apt autoremove'
-
 fi
 EOF
 
@@ -158,17 +161,13 @@ do
   fi
 done
 
-# rationale: chekea a través de un comando como root, si el archivo existe
-# este por lo general tiene permisos 760, por tanto no se puede como usuario normal
-# comprobar si existe
+# rationale: Archivo de reglas en sudoers.d
 sudoersfile=/etc/sudoers.d/glud
-if sudo ls "$sudoersfile" &> /dev/null
-then
+if [ -e $sudoersfile ]; then
   echo "Ya está creado archivo sudoers $sudoersfile."
 else
-
-# rationale: hace pass de las variables de entorno al sudo
-sudo tee $sudoersfile << 'EOF'
+  # rationale: hace pass de las variables de entorno al sudo
+  sudo tee $sudoersfile << 'EOF'
 Defaults  env_keep += "http_proxy"
 Defaults  env_keep += "https_proxy"
 Defaults  env_keep += "ftp_proxy"
@@ -184,7 +183,7 @@ Defaults  env_keep += "SOCKS_PROXY"
 Defaults  env_keep += "RSYNC_PROXY"
 Defaults  env_keep += "NO_PROXY"
 EOF
-
+  sudo chmod 440 $sudoersfile #Recomendacion de /etc/sudoers.d/README
 fi
 
 # rationale: Mostrar al usuario qué hay que hacer
